@@ -165,6 +165,7 @@
                         <th>অবস্থা</th>
                         <th>মেধা স্থান</th>
                         <th>বিষয়ভিত্তিক গ্রেড</th>
+                        <th>বিস্তারিত</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -174,6 +175,7 @@
         <div class="btn-group">
             <button class="btn-prev" onclick="goToStep(3)">&larr; পরিবর্তন করুন</button>
             <button class="btn-next" onclick="downloadResultPDF()">📥 PDF ডাউনলোড করুন</button>
+            <button class="btn-next" onclick="printResultPage()">🖨️ প্রিন্ট</button>
             <button class="btn-booklet" onclick="showBookletView()">📖 বুকলেট প্রগ্রেস রিপোর্ট দেখুন</button>
         </div>
     </div>
@@ -204,6 +206,7 @@
         <span class="page-indicator" id="page-num">পৃষ্ঠা: ১ / ৭</span>
         <button class="btn-controls" onclick="nextPage()">পরের পৃষ্ঠা ►</button>
         <button class="btn-controls" onclick="downloadBookletPDF()">📥 ডাউনলোড ও শেয়ার PDF</button>
+        <button class="btn-controls" onclick="printBooklet()">🖨️ প্রিন্ট</button>
         
         <!-- Action Buttons (Edit & Add Term) -->
         <button class="btn-controls btn-edit" onclick="handleEditCurrentStudent()">✏️ Edit</button>
@@ -260,8 +263,9 @@
 
                                 <div class="info-row two-col">
                                     <div class="col-item">
-                                        <span>শাখাঃ</span>
-                                        <div class="dots">ক</div>
+                                          <span>Student ID:</span>
+                                        <div class="dots" id="bk-stud-id">
+                                        </div>
                                     </div>
                                     <div class="col-item">
                                         <span>শিক্ষাবর্ষঃ</span>

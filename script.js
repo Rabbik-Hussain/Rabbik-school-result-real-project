@@ -273,9 +273,16 @@ function goToStep3() {
                     </div>
                 </div>
                 <h4>শিক্ষার্থী ${s+1}-এর তথ্য ${isLocked ? '<span style="color:red; font-size:12px;">(১৫ দিন পার হওয়ায় তথ্য লক হয়ে গেছে)</span>' : ''}</h4>
-                <div class="form-group">
-                    <label>শিক্ষার্থীর নাম:</label>
-                    <input type="text" class="stud-name" placeholder="নাম লিখুন" value="${existingStudent ? existingStudent.name : ''}" ${isLocked ? 'disabled' : ''}>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>শিক্ষার্থীর নাম:</label>
+                        <input type="text" class="stud-name" placeholder="নাম লিখুন" value="${existingStudent ? existingStudent.name : ''}" ${isLocked ? 'disabled' : ''}>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Student ID:</label>
+                        <input type="text" class="stud-id" placeholder="Student ID লিখুন" value="${existingStudent && existingStudent.studentId ? existingStudent.studentId : ''}" ${isLocked ? 'disabled' : ''}>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -381,9 +388,11 @@ function processResults() {
     }
 
     let studNames = document.querySelectorAll('.stud-name');
+    let studIds = document.querySelectorAll('.stud-id');
 
     for (let i = 0; i < studNames.length; i++) {
         let name = studNames[i].value || `শিক্ষার্থী ${i+1}`;
+        let studentId = studIds[i] ? studIds[i].value.trim() : "";
         let att = Number(document.getElementById(`att-${i}`).value) || 0;
         let attPercentage = ((att / totalWorkingDaysCount) * 100).toFixed(1);
 
@@ -438,10 +447,11 @@ function processResults() {
         };
 
         let studentPayload = {
-            name: name,
-            monthlyAtt: monthAtts,
-            terms: existingTerms
-        };
+             name: name,
+             studentId: studentId,
+             monthlyAtt: monthAtts,
+             terms: existingTerms
+};
 
         saveOrUpdateStudentProgress(classKey, studentPayload, i);
     }
@@ -532,9 +542,40 @@ function renderResultTable(classKey) {
                 <td><span class="${termData.status === 'পাশ' ? 'badge-pass' : 'badge-fail'}">${termData.status}</span></td>
                 <td><b>${termData.rank}ম</b></td>
                 <td style="text-align: left; font-size: 11px;">${subDetailsHTML}</td>
+                <td>
+                    <button
+                        type="button"
+                        class="btn-result-details"
+                        onclick="openResultDetails(${idx})"
+                    >
+                        বিস্তারিত
+                    </button>
+                </td>
             </tr>
         `;
     });
+}
+
+
+function openResultDetails(studentIndex) {
+    const className =
+        document.getElementById('className')?.value || "";
+
+    const sessionYear =
+        document.getElementById('sessionYear')?.value || "";
+
+    const context = {
+        classKey: `${className}_${sessionYear}`,
+        studentIndex: studentIndex,
+        term: selectedTerm
+    };
+
+    sessionStorage.setItem(
+        'ls_result_details_context',
+        JSON.stringify(context)
+    );
+
+    window.location.href = 'result-details.html';
 }
 
 // Edit and Reset Action Handlers
@@ -593,8 +634,8 @@ function loadStudentBooklet() {
     document.getElementById('bk-stud-name').innerText = student.name;
     document.getElementById('bk-stud-class').innerText = cName;
     document.getElementById('bk-stud-roll').innerText = activeTermData.rank;
+    document.getElementById('bk-stud-id').innerText = student.studentId || '';
     document.getElementById('bk-stud-session').innerText = sYear;
-    document.getElementById('bk-att-session').innerText = sYear;
 
     // Year Boxes
     let yearContainer = document.getElementById('yearBoxContainer');
@@ -847,3 +888,163 @@ function downloadBookletPDF() {
         }
     });
 }
+
+
+function printResultPage() {
+    const element = document.getElementById('step-4');
+
+    if (!element) {
+        alert('ফলাফল পেজ পাওয়া যায়নি।');
+        return;
+    }
+
+    const cloneElement = element.cloneNode(true);
+
+    cloneElement.querySelectorAll('button').forEach(btn => btn.remove());
+
+    const printWindow = window.open('', '_blank', 'width=1200,height=800');
+
+    if (!printWindow) {
+        alert('Print window খোলা যায়নি।');
+        return;
+    }
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="bn">
+        <head>
+            <meta charset="UTF-8">
+            <title>ফলাফল প্রিন্ট</title>
+
+            <link rel="stylesheet" href="style.css">
+            <link rel="stylesheet" href="style2.css">
+
+            <style>
+                @page {
+                    size: A4 landscape;
+                    margin: 10mm;
+                }
+
+                body {
+                    margin: 0;
+                    padding: 0;
+                    background: #fff;
+                }
+
+                #step-4 {
+                    display: block !important;
+                    width: 100% !important;
+                    overflow: visible !important;
+                }
+
+                table {
+                    page-break-inside: auto;
+                }
+
+                tr {
+                    page-break-inside: avoid;
+                    page-break-after: auto;
+                }
+            </style>
+        </head>
+
+        <body>
+            ${cloneElement.outerHTML}
+
+            <script>
+                window.onload = function () {
+                    setTimeout(function () {
+                        window.print();
+                    }, 700);
+                };
+
+                window.onafterprint = function () {
+                    window.close();
+                };
+            <\/script>
+        </body>
+        </html>
+    `);
+
+    printWindow.document.close();
+}
+
+
+function printBooklet() {
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+
+    if (!printWindow) {
+        alert('Print window খোলা যায়নি।');
+        return;
+    }
+
+    const pdfWrapper = document.createElement('div');
+    pdfWrapper.style.width = '480px';
+    pdfWrapper.style.margin = '0 auto';
+    pdfWrapper.style.background = '#fff';
+
+    pages.forEach((p) => {
+        const pageFront = p.querySelector('.page-front').cloneNode(true);
+
+        pageFront.style.position = 'relative';
+        pageFront.style.width = '480px';
+        pageFront.style.height = '670px';
+        pageFront.style.pageBreakAfter = 'always';
+        pageFront.style.breakAfter = 'page';
+
+        pdfWrapper.appendChild(pageFront);
+    });
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="bn">
+        <head>
+            <meta charset="UTF-8">
+            <title>প্রগ্রেস রিপোর্ট প্রিন্ট</title>
+
+            <link rel="stylesheet" href="style.css">
+            <link rel="stylesheet" href="style2.css">
+
+            <style>
+                @page {
+                    size: 480px 670px;
+                    margin: 0;
+                }
+
+                html, body {
+                    margin: 0;
+                    padding: 0;
+                    background: #fff;
+                }
+
+                .print-wrapper {
+                    width: 480px;
+                    margin: 0 auto;
+                }
+            </style>
+        </head>
+
+        <body>
+            <div class="print-wrapper">
+                ${pdfWrapper.innerHTML}
+            </div>
+
+            <script>
+                window.onload = function () {
+                    setTimeout(function () {
+                        window.print();
+                    }, 1000);
+                };
+
+                window.onafterprint = function () {
+                    window.close();
+                };
+            <\/script>
+        </body>
+        </html>
+    `);
+
+    printWindow.document.close();
+}
+
+
