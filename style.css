@@ -868,3 +868,22 @@ th {
         font-size: 8px;
     }
 }
+
+
+.btn-prev-page {
+    background-color: #8805e0;
+    color: white;
+    border: 2px solid #198754;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.btn-prev-page:hover {
+    background-color: #8805e0;
+    color: white;
+    font-weight: bold;
+}

@@ -3,8 +3,204 @@ let totalWorkingDaysCount = 0;
 let selectedTerm = "1";
 let monthlyWorkingDays = [];
 
+// Existing result edit mode
+let isEditingExistingResult = false;
+let editingExistingClassKey = '';
+let editingExistingTerm = '';
+
 // Global Storage Object for Student Records
 let schoolDatabase = {}; 
+
+
+// =========================================================
+// বর্তমানে লগইন করা শিক্ষক
+// =========================================================
+
+function getCurrentLoggedInUser() {
+
+    const teacherId =
+        localStorage.getItem('LS_LOGGED_IN_USER');
+
+    if (!teacherId) {
+        return null;
+    }
+
+    let teachersDB = {};
+
+    try {
+        teachersDB =
+            JSON.parse(
+                localStorage.getItem('teachersDB')
+            ) || {};
+    } catch (error) {
+        console.error('teachersDB data parse error:', error);
+        return null;
+    }
+
+    return teachersDB[teacherId] || null;
+}
+
+
+function validateTeacherClass() {
+
+    const currentUser = getCurrentLoggedInUser();
+
+    if (!currentUser) {
+        alert('লগইন করা ব্যবহারকারীর তথ্য পাওয়া যায়নি। আবার লগইন করুন।');
+        window.location.href = 'index.html';
+        return false;
+    }
+
+    if (currentUser.designation !== 'শ্রেণী শিক্ষক (Class Teacher)')  {
+        return true;
+    }
+
+    const enteredClass =
+        document.getElementById('className').value.trim();
+
+    const assignedClass =
+        String(currentUser.className || '').trim();
+
+    if (!enteredClass) {
+        return true;
+    }
+
+    function normalizeClass(value) {
+
+    const normalized =
+        String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\([^)]*\)/g, '')
+            .replace(/\s+/g, '');
+
+    const classMap = {
+        'প্লে': 'play',
+        'play': 'play',
+
+        'নার্সারি': 'nursery',
+        'nursery': 'nursery',
+
+        'ওয়ান': 'one',
+        'ওয়ান': 'one',
+        'one': 'one',
+
+        'টু': 'two',
+        'two': 'two',
+
+        'থ্রি': 'three',
+        'three': 'three',
+
+        'ফোর': 'four',
+        'four': 'four',
+
+        'ফাইভ': 'five',
+        'five': 'five'
+    };
+
+    return classMap[normalized] || normalized;
+}
+
+    if (
+        normalizeClass(enteredClass) !==
+        normalizeClass(assignedClass)
+    ) {
+        alert('আপনি এই ক্লাসের শিক্ষক নন।');
+        document.getElementById('className').value = '';
+        return false;
+    }
+
+    return true;
+}
+
+
+// =========================================================
+// page.html থেকে নির্দিষ্ট প্রান্তিকের Result ওপেন করা
+// =========================================================
+
+function loadResultSearchContext() {
+
+    const savedContext =
+        sessionStorage.getItem('ls_result_search_context');
+
+    if (!savedContext) {
+        return;
+    }
+
+    let context;
+
+try {
+    context = JSON.parse(savedContext);
+} catch (error) {
+    console.error('ls_result_search_context parse error:', error);
+    sessionStorage.removeItem('ls_result_search_context');
+    return;
+}
+
+    const classKey = context.classKey;
+    const term = context.term;
+
+    if (
+        !classKey ||
+        !schoolDatabase[classKey] ||
+        !schoolDatabase[classKey].students
+    ) {
+        sessionStorage.removeItem('ls_result_search_context');
+        return;
+    }
+
+    const classData = schoolDatabase[classKey];
+
+    // Class ও Session আলাদা করা
+    document.getElementById('className').value =
+        classData.className || classKey.split('_')[0];
+
+    document.getElementById('sessionYear').value =
+        classData.sessionYear || classKey.substring(
+            classKey.indexOf('_') + 1
+        );
+
+    // নির্দিষ্ট প্রান্তিক নির্বাচন
+    selectedTerm = term;
+
+    const termSelect =
+        document.getElementById('termType');
+
+    if (termSelect) {
+        termSelect.value = term;
+    }
+
+    // প্রয়োজনীয় Working Days
+    totalWorkingDaysCount =
+        classData.totalWorkingDays || 0;
+
+    monthlyWorkingDays =
+        classData.monthlyWorkingDays || [];
+
+    // Result Table-এ আগের existing function ব্যবহার
+renderResultTable(classKey);
+
+// Search Card থেকে Result দেখা হলে
+// "পরিবর্তন করুন" বাটনটি "ফিরে যান" হবে
+const backButton =
+    document.querySelector('#step-4 .btn-prev');
+
+if (backButton) {
+    backButton.innerHTML = '&larr; ফিরে যান';
+
+    backButton.onclick = function() {
+        window.location.href = 'page.html';
+    };
+}
+
+// ধাপ ৪ দেখানো
+goToStep(4);
+
+    // একবার ব্যবহার করার পর context মুছে দেওয়া
+    sessionStorage.removeItem(
+        'ls_result_search_context'
+    );
+}
 
 const subjectListOptions = [
     "বাংলা", "বাংলা ব্যাকরণ", "ইংরেজি", "ইংরেজি গ্রামার", "গণিত",
@@ -17,10 +213,20 @@ const monthsFull = ['জানুয়ারি', 'ফেব্রুয়ারি'
 
 // Load Local Storage on startup
 window.onload = function() {
-    let savedData = localStorage.getItem('ls_school_data');
+
+    let savedData =
+        localStorage.getItem('ls_school_data');
+
     if(savedData) {
-        schoolDatabase = JSON.parse(savedData);
+        try {
+            schoolDatabase = JSON.parse(savedData);
+        } catch (error) {
+            console.error('ls_school_data parse error:', error);
+            schoolDatabase = {};
+        }
     }
+
+    loadResultSearchContext();
 };
 
 function saveToLocalStorage() {
@@ -45,36 +251,116 @@ function searchStudent() {
         return;
     }
 
-    let classKey = `${className}_${session}`;
-    if (!schoolDatabase[classKey] || !schoolDatabase[classKey].students) {
+    // ধাপ ১-এর শ্রেণী ইনপুটের একই normalization rule
+    function normalizeClass(value) {
+
+        const normalized =
+            String(value || '')
+                .trim()
+                .toLowerCase()
+                .replace(/\([^)]*\)/g, '')
+                .replace(/\s+/g, '');
+
+        const classMap = {
+            'প্লে': 'play',
+            'play': 'play',
+
+            'নার্সারি': 'nursery',
+            'nursery': 'nursery',
+
+            'ওয়ান': 'one',
+            'ওয়ান': 'one',
+            'one': 'one',
+
+            'টু': 'two',
+            'two': 'two',
+
+            'থ্রি': 'three',
+            'three': 'three',
+
+            'ফোর': 'four',
+            'four': 'four',
+
+            'ফাইভ': 'five',
+            'five': 'five'
+        };
+
+        return classMap[normalized] || normalized;
+    }
+
+    const normalizedSearchClass = normalizeClass(className);
+
+    // সংরক্ষিত ক্লাসের নামও একই নিয়মে মিলানো হবে
+    const classEntry = Object.entries(schoolDatabase).find(
+        ([key, classData]) =>
+            classData &&
+            classData.students &&
+            String(classData.sessionYear).trim() === session &&
+            normalizeClass(classData.className || key.split('_')[0]) === normalizedSearchClass
+    );
+
+    if (!classEntry) {
         alert('দুঃখিত! এই সেশন ও শ্রেণীর কোন তথ্য সংরক্ষিত নেই।');
         return;
     }
 
-    tempSearchResults = schoolDatabase[classKey].students.map((s, idx) => ({ ...s, originalIdx: idx }))
-        .filter(s => s.name.toLowerCase() === studentName.toLowerCase());
+    const classKey = classEntry[0];
+    const classData = classEntry[1];
+
+    tempSearchResults = classData.students
+        .map((s, idx) => ({ ...s, originalIdx: idx }))
+        .filter(
+            s =>
+                String(s.name || '').trim().toLowerCase() ===
+                studentName.toLowerCase()
+        );
 
     if (tempSearchResults.length === 0) {
         alert('দুঃখিত! এই নামের কোন শিক্ষার্থী খুঁজে পাওয়া যায়নি।');
         return;
     }
 
-    document.getElementById('className').value = className;
-    document.getElementById('sessionYear').value = session;
+    // Search-এর পর standard stored class name ব্যবহার করা হবে
+    document.getElementById('className').value =
+        classData.className || className;
+
+    document.getElementById('sessionYear').value =
+        classData.sessionYear || session;
 
     if (tempSearchResults.length === 1) {
         showBookletView();
-        document.getElementById('studentSelector').value = tempSearchResults[0].originalIdx;
+        document.getElementById('studentSelector').value =
+            tempSearchResults[0].originalIdx;
         loadStudentBooklet();
     } else {
         // Multiple Matches - Display Selection Modal
-        let dropdown = document.getElementById('multipleStudentDropdown');
+        let dropdown =
+            document.getElementById('multipleStudentDropdown');
+
         dropdown.innerHTML = "";
-        tempSearchResults.forEach(s => {
-            let currentRank = s.terms[selectedTerm] ? s.terms[selectedTerm].rank : 'N/A';
-            dropdown.innerHTML += `<option value="${s.originalIdx}">রোল/মেধা স্থান: ${currentRank} - নাম: ${s.name}</option>`;
-        });
-        document.getElementById('multipleSelectModal').style.display = 'flex';
+
+       tempSearchResults.forEach(s => {
+
+    const rollNumber =
+        String(s.originalIdx + 1).padStart(2, '0');
+
+    const studentIdText =
+        String(s.studentId || '').trim();
+
+    const displayText =
+        studentIdText
+            ? `রোল: ${rollNumber} - নাম: ${s.name} - ID: ${studentIdText}`
+            : `রোল: ${rollNumber} - নাম: ${s.name}`;
+
+    dropdown.innerHTML += `
+        <option value="${s.originalIdx}">
+            ${displayText}
+        </option>
+    `;
+});
+
+        document.getElementById('multipleSelectModal').style.display =
+            'flex';
     }
 
     document.getElementById('searchSection').classList.remove('active');
@@ -91,8 +377,10 @@ function confirmStudentSelection() {
 // 15 Days Edit Lock Check
 function isRecordLocked(createdAtTimestamp) {
     if (!createdAtTimestamp) return false;
+
     const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000;
-    return (Date.now() - createdAtTimestamp) > fifteenDaysInMs;
+
+    return (Date.now() - Number(createdAtTimestamp)) > fifteenDaysInMs;
 }
 
 // Dynamic Months Setup
@@ -143,7 +431,7 @@ function generateSubjectFields() {
                 </div>
                 <div class="form-group">
                     <label>শ্রেণীতে সর্বোচ্চ প্রাপ্ত নম্বর:</label>
-                    <input type="number" class="sub-highest-mark" placeholder="যেমন: ৯৫">
+                    <input type="number" class="sub-highest-mark" placeholder="Like:95">
                 </div>
             </div>
         `;
@@ -167,6 +455,38 @@ function goToStep2() {
 
     if (!cName || !tStud || !tSub) {
         alert('অনুগ্রহ করে ধাপ ১-এর সকল তথ্য ঠিকভাবে পূরণ করুন!');
+        return;
+    }
+
+    const currentUser = getCurrentLoggedInUser();
+
+    if (!currentUser) {
+        alert('লগইন করা ব্যবহারকারীর তথ্য পাওয়া যায়নি। আবার লগইন করুন।');
+        window.location.href = 'index.html';
+        return;
+    }
+
+    const currentTeacherId =
+        localStorage.getItem('LS_LOGGED_IN_USER');
+
+    const sYear =
+    document.getElementById('sessionYear').value.trim();
+
+if (!/^\d{4}$/.test(sYear)) {
+    alert('অনুগ্রহ করে সঠিক ৪ সংখ্যার Session Year প্রদান করুন।');
+    return;
+}
+
+const classKey = `${cName}_${sYear}`;
+
+    const classRecord = schoolDatabase[classKey];
+
+    if (
+        classRecord &&
+        classRecord.ownerTeacherId &&
+        classRecord.ownerTeacherId !== currentTeacherId
+    ) {
+        alert('এই রেজাল্ট পরিবর্তন করার অনুমতি আপনার নেই।');
         return;
     }
 
@@ -204,6 +524,28 @@ function goToStep3() {
     let cName = document.getElementById('className').value;
     let sYear = document.getElementById('sessionYear').value;
     let classKey = `${cName}_${sYear}`;
+
+    const currentUser = getCurrentLoggedInUser();
+
+    if (!currentUser) {
+        alert('লগইন করা ব্যবহারকারীর তথ্য পাওয়া যায়নি। আবার লগইন করুন।');
+        window.location.href = 'index.html';
+        return;
+    }
+
+    const currentTeacherId =
+        localStorage.getItem('LS_LOGGED_IN_USER');
+
+    const classRecord = schoolDatabase[classKey];
+
+    if (
+        classRecord &&
+        classRecord.ownerTeacherId &&
+        classRecord.ownerTeacherId !== currentTeacherId
+    ) {
+        alert('এই রেজাল্ট পরিবর্তন করার অনুমতি আপনার নেই।');
+        return;
+    }
 
     for (let s = 0; s < studentCount; s++) {
         let existingStudent = (schoolDatabase[classKey] && schoolDatabase[classKey].students) ? schoolDatabase[classKey].students[s] : null;
@@ -356,6 +698,21 @@ function calculateGrade(marks, fullMark) {
 
 // Save/Update Functionality
 function saveOrUpdateStudentProgress(classKey, studentData, studentIdx) {
+
+    const currentTeacherId =
+        localStorage.getItem('LS_LOGGED_IN_USER');
+
+    const classRecord = schoolDatabase[classKey];
+
+    if (
+        classRecord &&
+        classRecord.ownerTeacherId &&
+        classRecord.ownerTeacherId !== currentTeacherId
+    ) {
+        alert('এই রেজাল্ট পরিবর্তন করার অনুমতি আপনার নেই।');
+        return;
+    }
+
     if (!schoolDatabase[classKey].students[studentIdx]) {
         schoolDatabase[classKey].students[studentIdx] = {
             id: Date.now() + studentIdx,
@@ -375,6 +732,71 @@ function saveOrUpdateStudentProgress(classKey, studentData, studentIdx) {
 function processResults() {
     let cName = document.getElementById('className').value;
     let sYear = document.getElementById('sessionYear').value;
+
+    const currentUser = getCurrentLoggedInUser();
+
+    if (!currentUser) {
+        alert('লগইন করা ব্যবহারকারীর তথ্য পাওয়া যায়নি। আবার লগইন করুন।');
+        window.location.href = 'index.html';
+        return;
+    }
+
+    const currentTeacherId =
+        localStorage.getItem('LS_LOGGED_IN_USER');
+
+    const currentTeacherDesignation =
+    currentUser.designation;
+
+const currentTeacherClass =
+    currentUser.className;
+
+if (currentTeacherDesignation === 'শ্রেণী শিক্ষক (Class Teacher)') {
+
+    function normalizeClass(value) {
+
+        const normalized =
+            String(value || '')
+                .trim()
+                .toLowerCase()
+                .replace(/\([^)]*\)/g, '')
+                .replace(/\s+/g, '');
+
+        const classMap = {
+            'প্লে': 'play',
+            'play': 'play',
+
+            'নার্সারি': 'nursery',
+            'nursery': 'nursery',
+
+            'ওয়ান': 'one',
+            'ওয়ান': 'one',
+            'one': 'one',
+
+            'টু': 'two',
+            'two': 'two',
+
+            'থ্রি': 'three',
+            'three': 'three',
+
+            'ফোর': 'four',
+            'four': 'four',
+
+            'ফাইভ': 'five',
+            'five': 'five'
+        };
+
+        return classMap[normalized] || normalized;
+    }
+
+    if (
+        normalizeClass(cName) !==
+        normalizeClass(currentTeacherClass)
+    ) {
+        alert('আপনি এই ক্লাসের শিক্ষক নন।');
+        return;
+    }
+}
+
     let classKey = `${cName}_${sYear}`;
 
     if(!schoolDatabase[classKey]) {
@@ -383,12 +805,86 @@ function processResults() {
             sessionYear: sYear,
             totalWorkingDays: totalWorkingDaysCount,
             monthlyWorkingDays: monthlyWorkingDays,
+            ownerTeacherId: currentTeacherId,
             students: []
         };
     }
 
+    if (
+        schoolDatabase[classKey].ownerTeacherId &&
+        schoolDatabase[classKey].ownerTeacherId !== currentTeacherId
+    ) {
+        alert('এই রেজাল্ট পরিবর্তন করার অনুমতি আপনার নেই।');
+        return;
+    }
+
+    const isEditingSameExistingResult =
+    isEditingExistingResult &&
+    editingExistingClassKey === classKey &&
+    editingExistingTerm === selectedTerm;
+
+if (!isEditingSameExistingResult) {
+    const classRecord = schoolDatabase[classKey];
+
+    const hasExistingTermResult =
+        classRecord &&
+        Array.isArray(classRecord.students) &&
+        classRecord.students.some(
+            student =>
+                student &&
+                student.terms &&
+                student.terms[selectedTerm]
+        );
+
+    if (hasExistingTermResult) {
+        alert(
+            'এই ক্লাস, সেশন ও প্রান্তিকের ফলাফল ইতোমধ্যে তৈরি করা হয়েছে। নতুন করে ফলাফল তৈরি করা যাবে না।'
+        );
+        return;
+    }
+}
+
     let studNames = document.querySelectorAll('.stud-name');
     let studIds = document.querySelectorAll('.stud-id');
+
+    // Student ID duplicate validation
+    for (let i = 0; i < studIds.length; i++) {
+
+        const studentId = studIds[i] ? studIds[i].value.trim() : "";
+
+        if (!studentId) {
+            continue;
+        }
+
+        // একই ফলাফল তৈরির সময় Student ID একাধিকবার দেওয়া হয়েছে কি না
+        for (let j = i + 1; j < studIds.length; j++) {
+
+            const nextStudentId =
+                studIds[j] ? studIds[j].value.trim() : "";
+
+            if (studentId === nextStudentId) {
+                alert(
+                    `Student ID "${studentId}" একাধিক শিক্ষার্থীর জন্য ব্যবহার করা হয়েছে। অনুগ্রহ করে প্রতিটি শিক্ষার্থীর জন্য আলাদা Student ID প্রদান করুন।`
+                );
+                return;
+            }
+        }
+
+        // আগে থেকে সংরক্ষিত অন্য শিক্ষার্থীর Student ID-এর সাথে মিলছে কি না
+        const existingStudentIndex =
+            schoolDatabase[classKey].students.findIndex(
+                (student, index) =>
+                    index !== i &&
+                    String(student.studentId || '').trim() === studentId
+            );
+
+        if (existingStudentIndex !== -1) {
+            alert(
+                `Student ID "${studentId}" ইতোমধ্যে এই ক্লাস ও সেশনের অন্য একজন শিক্ষার্থীর জন্য সংরক্ষিত আছে।`
+            );
+            return;
+        }
+    }
 
     for (let i = 0; i < studNames.length; i++) {
         let name = studNames[i].value || `শিক্ষার্থী ${i+1}`;
@@ -464,30 +960,60 @@ function processResults() {
 
 function calculateRankings(classKey) {
     let students = schoolDatabase[classKey].students;
+    let rankingStudents = [...students];
 
     if (selectedTerm === "1" || selectedTerm === "2") {
-        students.sort((a, b) => {
-            let termA = a.terms[selectedTerm] || { totalMarks: 0 };
-            let termB = b.terms[selectedTerm] || { totalMarks: 0 };
-            return termB.totalMarks - termA.totalMarks;
+        rankingStudents.sort((a, b) => {
+            let termA = a.terms[selectedTerm] || {
+                totalMarks: 0,
+                attendance: 0
+            };
+
+            let termB = b.terms[selectedTerm] || {
+                totalMarks: 0,
+                attendance: 0
+            };
+
+            // প্রথমে মোট নম্বর বেশি হলে আগে
+            if (Number(termB.totalMarks) !== Number(termA.totalMarks)) {
+                return Number(termB.totalMarks) - Number(termA.totalMarks);
+            }
+
+            // মোট নম্বর সমান হলে Attendance Percentage বেশি হলে আগে
+            return Number(termB.attendance) - Number(termA.attendance);
         });
 
-        students.forEach((st, idx) => {
+        rankingStudents.forEach((st, idx) => {
             if (st.terms[selectedTerm]) {
                 st.terms[selectedTerm].rank = idx + 1;
             }
         });
+
     } else if (selectedTerm === "3") {
-        students.sort((a, b) => {
+        rankingStudents.sort((a, b) => {
             let sumA = getAnnualTotalWeightedScore(a);
             let sumB = getAnnualTotalWeightedScore(b);
-            return sumB - sumA;
+
+            // প্রথমে Annual Weighted Score বেশি হলে আগে
+            if (Number(sumB) !== Number(sumA)) {
+                return Number(sumB) - Number(sumA);
+            }
+
+            // Annual Score সমান হলে ৩য় প্রান্তিকের Attendance বেশি হলে আগে
+            let attendanceA =
+                a.terms["3"] ? Number(a.terms["3"].attendance) || 0 : 0;
+
+            let attendanceB =
+                b.terms["3"] ? Number(b.terms["3"].attendance) || 0 : 0;
+
+            return attendanceB - attendanceA;
         });
 
-        students.forEach((st, idx) => {
+        rankingStudents.forEach((st, idx) => {
             if (st.terms["3"]) {
                 st.terms["3"].rank = idx + 1;
-                st.terms["3"].annualTotalWeighted = getAnnualTotalWeightedScore(st).toFixed(2);
+                st.terms["3"].annualTotalWeighted =
+                    getAnnualTotalWeightedScore(st).toFixed(2);
             }
         });
     }
@@ -513,8 +1039,8 @@ function renderResultTable(classKey) {
     document.getElementById('resTermName').innerText = termNameText;
 
     if(selectedTerm === "3") {
-        document.getElementById('resTableScoreHeader').innerText = "৩টি পরীক্ষার পার্সেন্টেজের যোগফল (১০০%)";
         document.getElementById('resTableWeightHeader').innerText = "৮০% ওয়েটেজ";
+        document.getElementById('resTableScoreHeader').innerText = "বার্ষিক মোট নম্বর (১০০% ওয়েটেজ)";
     } else {
         document.getElementById('resTableScoreHeader').innerText = "মোট নম্বর";
         document.getElementById('resTableWeightHeader').innerText = "১০% ওয়েটেজ";
@@ -536,8 +1062,8 @@ function renderResultTable(classKey) {
                 <td><b>${rollNumber}</b></td>
                 <td><b>${st.name}</b></td>
                 <td>${termData.attendance}%</td>
-                <td><b>${displayScore}</b></td>
                 <td>${termData.weightageMarks}</td>
+                <td><b>${displayScore}</b></td>
                 <td><b>${termData.gpa}</b></td>
                 <td><span class="${termData.status === 'পাশ' ? 'badge-pass' : 'badge-fail'}">${termData.status}</span></td>
                 <td><b>${termData.rank}ম</b></td>
@@ -580,11 +1106,77 @@ function openResultDetails(studentIndex) {
 
 // Edit and Reset Action Handlers
 function handleEditCurrentStudent() {
+
+    const currentUser = getCurrentLoggedInUser();
+
+    if (!currentUser) {
+        alert('লগইন করা ব্যবহারকারীর তথ্য পাওয়া যায়নি। আবার লগইন করুন।');
+        window.location.href = 'index.html';
+        return;
+    }
+
+    const cName =
+        document.getElementById('className').value.trim();
+
+    const sYear =
+        document.getElementById('sessionYear').value.trim();
+
+    const classKey = `${cName}_${sYear}`;
+
+    const classRecord = schoolDatabase[classKey];
+
+    if (
+        classRecord &&
+        classRecord.ownerTeacherId &&
+        classRecord.ownerTeacherId !==
+        localStorage.getItem('LS_LOGGED_IN_USER')
+    ) {
+        alert('এই রেজাল্ট পরিবর্তন করার অনুমতি আপনার নেই।');
+        return;
+    }
+
+    isEditingExistingResult = true;
+    editingExistingClassKey = classKey;
+    editingExistingTerm = selectedTerm;
+
     showFormView();
     goToStep(1);
 }
 
 function handleAddNewTerm() {
+
+    const currentUser = getCurrentLoggedInUser();
+
+    if (!currentUser) {
+        alert('লগইন করা ব্যবহারকারীর তথ্য পাওয়া যায়নি। আবার লগইন করুন।');
+        window.location.href = 'index.html';
+        return;
+    }
+
+    const cName =
+        document.getElementById('className').value.trim();
+
+    const sYear =
+        document.getElementById('sessionYear').value.trim();
+
+    const classKey = `${cName}_${sYear}`;
+
+    const classRecord = schoolDatabase[classKey];
+
+    if (
+        classRecord &&
+        classRecord.ownerTeacherId &&
+        classRecord.ownerTeacherId !==
+        localStorage.getItem('LS_LOGGED_IN_USER')
+    ) {
+        alert('এই রেজাল্ট পরিবর্তন করার অনুমতি আপনার নেই।');
+        return;
+    }
+
+    isEditingExistingResult = false;
+    editingExistingClassKey = '';
+    editingExistingTerm = '';
+
     showFormView();
     document.getElementById('totalSubjects').value = '';
     document.getElementById('subjectContainer').innerHTML = '';
@@ -597,6 +1189,15 @@ function handleAddNewTerm() {
 function showBookletView() {
     document.getElementById('formSection').classList.add('hidden');
     document.getElementById('bookletSection').classList.remove('hidden');
+
+    // Booklet page state reset
+    currentStep = 1;
+
+    if (typeof pages !== 'undefined' && pages) {
+        pages.forEach(page => page.classList.remove('flipped'));
+    }
+
+    updateIndicator();
 
     let cName = document.getElementById('className').value;
     let sYear = document.getElementById('sessionYear').value;
@@ -612,7 +1213,6 @@ function showBookletView() {
 
     loadStudentBooklet();
 }
-
 function showFormView() {
     document.getElementById('bookletSection').classList.add('hidden');
     document.getElementById('formSection').classList.remove('hidden');

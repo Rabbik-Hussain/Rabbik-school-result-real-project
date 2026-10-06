@@ -79,7 +79,7 @@
         <div class="grid-3">
             <div class="form-group">
                 <label>শ্রেণীর নাম:</label>
-                <input type="text" id="className" placeholder="Like: Class-One">
+                <input type="text" id="className" placeholder="Like: Class-Play/One/Five" onblur="validateTeacherClass()">
             </div>
             <div class="form-group">
                 <label>সেশন (Session):</label>
@@ -109,7 +109,9 @@
         <div id="subjectContainer"></div>
 
         <div class="btn-group">
-            <div></div>
+           <button class="btn-prev-page" onclick="window.location.href='page.html'">
+                পূর্ববর্তী পৃষ্ঠা
+            </button>
             <button class="btn-next" onclick="goToStep2()">পরবর্তী ধাপ &rarr;</button>
         </div>
     </div>
@@ -159,8 +161,8 @@
                         <th>রোল নম্বর</th>
                         <th>শিক্ষার্থীর নাম</th>
                         <th>উপস্থিতি (%)</th>
-                        <th id="resTableScoreHeader">মোট নম্বর</th>
                         <th id="resTableWeightHeader">১০% ওয়েটেজ</th>
+                        <th id="resTableScoreHeader">মোট নম্বর</th>
                         <th>GPA</th>
                         <th>অবস্থা</th>
                         <th>মেধা স্থান</th>
